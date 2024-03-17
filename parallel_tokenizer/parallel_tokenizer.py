@@ -23,7 +23,7 @@ class ParallelTokenizer:
     Parameters:
     - tokenizer (Union[SentencePieceTokenizer, PreTrainedTokenizer]): The tokenizer instance that will be
       used for tokenizing text. It can be either a SentencePieceTokenizer or a PreTrainedTokenizer.
-    - parallel_degree (int, optional): The number of parallel processes to use for tokenizing. Defaults to 4.
+    - num_processes (int, optional): The number of parallel processes to use for tokenizing. Defaults to 4.
     - chunk_size (int, optional): The size of each chunk of text to be tokenized in parallel. Defaults to 40960.
     - overlap_length (int, optional): The length of the overlapping parts of the text chunks to ensure continuity
       in the tokenization process. Defaults to 512.
@@ -34,18 +34,18 @@ class ParallelTokenizer:
     def __init__(
         self,
         tokenizer: Union[SentencePieceTokenizer, PreTrainedTokenizer],
-        parallel_degree: int = 4,
+        num_processes: int = 4,
         chunk_size: int = 40960,
         overlap_length: int = 512,
         concat_keys: Sequence[str] = ("input_ids", "attention_mask"),
     ) -> None:
         assert callable(tokenizer), "tokenizer should be callable"
         self.tokenizer = tokenizer
-        self.parallel_degree = parallel_degree
+        self.num_processes = num_processes
         self.chunk_size = chunk_size
         self.overlap_length = overlap_length
         self.concat_keys = concat_keys
-        self.pool = mp.Pool(parallel_degree)  # pylint: disable=R1732
+        self.pool = mp.Pool(num_processes)  # pylint: disable=R1732
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         """
@@ -64,10 +64,11 @@ class ParallelTokenizer:
         """
         if len(args) > 0:
             text = args[0]
+            args = args[1:]
         else:
             text = kwargs.pop("text")
         assert isinstance(text, str), "Currently not support batch encoding. Please pass the text as a string."
-        _tokenizer = partial(self.tokenizer, *args[1:], **kwargs)
+        _tokenizer = partial(self.tokenizer, *args, **kwargs)
         shards = self.pool.map(
             partial(ParallelTokenizer.encode_handler, tokenizer=_tokenizer),
             chunks(text, self.chunk_size, self.overlap_length),
@@ -103,7 +104,7 @@ class ParallelTokenizer:
         """
         return getattr(self.tokenizer, __name)
 
-    def test(self, *args: Any, **kwargs: Any) -> float:
+    def benchmark(self, *args: Any, **kwargs: Any) -> float:
         """
         Tests the efficiency and accuracy of the parallel tokenization process compared to the sequential process.
 
@@ -171,7 +172,7 @@ class ParallelTokenizer:
 
 def convert_parallel_tokenizer(  # pylint: disable=W0102
     tokenizer: Union[SentencePieceTokenizer, PreTrainedTokenizer],
-    parallel_degree: int = 4,
+    num_processes: int = 4,
     chunk_size: int = 40960,
     overlap_length: int = 512,
     concat_keys: List[str] = ["input_ids", "attention_mask"],
@@ -182,7 +183,7 @@ def convert_parallel_tokenizer(  # pylint: disable=W0102
     Parameters:
     - tokenizer (Union[SentencePieceTokenizer, PreTrainedTokenizer]): The tokenizer to be used for parallel
       tokenization.
-    - parallel_degree (int, optional): The number of processes to use for parallel tokenization. Defaults to 4.
+    - num_processes (int, optional): The number of processes to use for parallel tokenization. Defaults to 4.
     - chunk_size (int, optional): The size of text chunks to be tokenized in parallel. Defaults to 40960.
     - overlap_length (int, optional): The length of overlaps between text chunks to ensure continuity. Defaults to 512.
     - concat_keys (List[str], optional): The keys of the tokenization output to be concatenated.
@@ -193,7 +194,7 @@ def convert_parallel_tokenizer(  # pylint: disable=W0102
     """
     return ParallelTokenizer(
         tokenizer=tokenizer,
-        parallel_degree=parallel_degree,
+        num_processes=num_processes,
         chunk_size=chunk_size,
         overlap_length=overlap_length,
         concat_keys=concat_keys,
