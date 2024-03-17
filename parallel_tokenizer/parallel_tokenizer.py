@@ -170,7 +170,7 @@ class ParallelTokenizer:
         return match(chunks)
 
 
-def convert_parallel_tokenizer(  # pylint: disable=W0102
+def get_parallel_tokenizer(  # pylint: disable=W0102
     tokenizer: Union[SentencePieceTokenizer, PreTrainedTokenizer],
     num_processes: int = 4,
     chunk_size: int = 40960,
