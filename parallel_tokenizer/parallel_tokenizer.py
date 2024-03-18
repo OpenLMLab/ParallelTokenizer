@@ -1,5 +1,6 @@
 # Copyright (c) OpenLMLab. All rights reserved.
 import multiprocessing as mp
+import os
 import time
 from functools import partial, reduce
 from typing import Any, Callable, List, Sequence, Tuple, Union
@@ -13,6 +14,8 @@ from .sp_tokenizer import SentencePieceTokenizer
 from .utils import chunks, flatten, match, merge, pairs, to_list
 
 logger = get_logger(__name__)
+
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
 class ParallelTokenizer:
@@ -73,6 +76,10 @@ class ParallelTokenizer:
             partial(ParallelTokenizer.encode_handler, tokenizer=_tokenizer),
             chunks(text, self.chunk_size, self.overlap_length),
         )
+
+        if len(shards) == 1:
+            return shards[0]
+
         if isinstance(shards[0], (dict, BatchEncoding)):
             tokens_shards = [flatten(shard["input_ids"]) for shard in shards]
         else:
@@ -92,6 +99,10 @@ class ParallelTokenizer:
             result = merge(shards, matches)
         return result
 
+    def __del__(self):
+        self.pool.close()
+        self.pool.join()
+
     def __getattr__(self, __name: str) -> Any:
         """
         Allows direct access to the tokenizer's attributes.
@@ -104,7 +115,7 @@ class ParallelTokenizer:
         """
         return getattr(self.tokenizer, __name)
 
-    def benchmark(self, *args: Any, **kwargs: Any) -> float:
+    def benchmark(self, *args: Any, return_acc: bool = True, **kwargs: Any) -> float:
         """
         Tests the efficiency and accuracy of the parallel tokenization process compared to the sequential process.
 
@@ -130,13 +141,16 @@ class ParallelTokenizer:
             raw_tokens = to_list(flatten(raw_result))
             parallel_tokens = to_list(flatten(parallel_result))
 
-        acc = [raw_tokens[i] - parallel_tokens[i] for i in range(min(len(raw_tokens), len(parallel_tokens)))].count(
-            0
-        ) / min(len(raw_tokens), len(parallel_tokens))
+        if return_acc:
+            acc = [raw_tokens[i] - parallel_tokens[i] for i in range(min(len(raw_tokens), len(parallel_tokens)))].count(
+                0
+            ) / min(len(raw_tokens), len(parallel_tokens))
 
-        logger.info(f"raw_time: {raw_time:.4f} - parallel_time: {parallel_time:.4f} - acc: {acc:.4f}")
+            logger.info(f"raw_time: {raw_time:.4f} - parallel_time: {parallel_time:.4f} - acc: {acc:.4f}")
 
-        return acc
+            return raw_time, parallel_time, acc
+        else:
+            logger.info(f"raw_time: {raw_time:.4f} - parallel_time: {parallel_time:.4f}")
 
     @staticmethod
     def encode_handler(
