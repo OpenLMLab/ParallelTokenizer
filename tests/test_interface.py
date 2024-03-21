@@ -1,20 +1,19 @@
-import pytest
 import random
 
+import pytest
 import torch
 from transformers import AutoTokenizer
 from wonderwords import RandomWord
 
 from parallel_tokenizer import ParallelTokenizer
 
-
 TEST_MODELS = [
     "internlm/internlm2-7b",
-    # "meta-llama/Llama-2-7b-chat-hf",
+    "meta-llama/Llama-2-7b-chat-hf",
     "baichuan-inc/Baichuan2-7B-Chat",
     "mistralai/Mistral-7B-Instruct-v0.2",
-    # "google/gemma-7b-it",
-    "Qwen/Qwen1.5-7B-Chat",
+    "google/gemma-7b-it",
+    "Qwen/Qwen1.5-72B-Chat",
     "THUDM/chatglm3-6b",
 ]
 TEST_LENGTHS = [8192, 16384]
@@ -26,11 +25,7 @@ TEST_LENGTHS = [8192, 16384]
 @pytest.mark.parametrize("return_tensors", [None, "pt"])
 @pytest.mark.parametrize("batch", [False])
 def test_call(
-    model_name_or_path: str,
-    sentence_length: int,
-    add_special_tokens: bool,
-    return_tensors: str or None,
-    batch: bool
+    model_name_or_path: str, sentence_length: int, add_special_tokens: bool, return_tensors: str or None, batch: bool
 ):
     random.seed(1024)
     r = RandomWord()
@@ -53,6 +48,7 @@ def test_call(
     ret_parallel = parallel_tokenizer(input_text, add_special_tokens=add_special_tokens, return_tensors=return_tensors)
 
     for k in ret_hf:
+
         if isinstance(ret_hf[k], list):
             assert ret_hf[k] == ret_parallel[k], f"{k} is not equal"
         elif isinstance(ret_hf[k], torch.Tensor):
