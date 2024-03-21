@@ -318,3 +318,37 @@ def get_size(item: Union[torch.Tensor, np.ndarray, List[int]]) -> Tuple[int]:
         return tuple(shape)
     else:
         raise ValueError(f"Unsupported type {type(item)} for get_size")
+
+
+def add_scalar(
+    item: Union[torch.Tensor, np.ndarray, List[int]], scalar: int
+) -> Union[torch.Tensor, np.ndarray, List[int]]:
+    if isinstance(item, (torch.Tensor, np.ndarray)):
+        return item + scalar
+    elif isinstance(item, List):
+        return [add_scalar(subitem, scalar) for subitem in item]
+    elif isinstance(item, int):
+        return item + scalar
+    else:
+        raise ValueError(f"Unsupported type {type(item)} for add_scalar")
+
+
+def arange_like(
+    item: Union[torch.Tensor, np.ndarray, List[int]], start: int, end: int
+) -> Union[torch.Tensor, np.ndarray, List[int]]:
+    ndim = get_ndim(item)
+    if isinstance(item, torch.Tensor):
+        item = torch.arange(start, end, device=item.device, dtype=item.dtype)
+        while get_ndim(item) < ndim:
+            item = item.unsqueeze(0)
+    elif isinstance(item, np.ndarray):
+        item = np.arange(start, end)
+        while get_ndim(item) < ndim:
+            item = item[np.newaxis]
+    elif isinstance(item, List):
+        item = list(range(start, end))
+        while get_ndim(item) < ndim:
+            item = [item]
+    else:
+        raise ValueError(f"Unsupported type {type(item)} for arange_like")
+    return item

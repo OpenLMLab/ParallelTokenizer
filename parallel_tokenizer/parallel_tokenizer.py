@@ -11,6 +11,7 @@ from transformers.tokenization_utils import BatchEncoding, PreTrainedTokenizer
 
 from .logger import get_logger
 from .sp_tokenizer import SentencePieceTokenizer
+from .special_cases import SPECIAL_KEYS_DICT
 from .utils import chunks, flatten, match, merge, pairs, to_list
 
 logger = get_logger(__name__)
@@ -90,10 +91,12 @@ class ParallelTokenizer:
 
         if isinstance(shards[0], (dict, BatchEncoding)):
             result = shards[0].__class__()
-            for key in self.concat_keys:
-                result[key] = merge([shard[key] for shard in shards], matches)
             for key in shards[0].keys():
-                if key not in self.concat_keys:
+                if key in SPECIAL_KEYS_DICT:
+                    result[key] = SPECIAL_KEYS_DICT[key]([shard[key] for shard in shards], matches=matches)
+                elif key in self.concat_keys:
+                    result[key] = merge([shard[key] for shard in shards], matches)
+                else:
                     result[key] = [shard[key] for shard in shards]
         else:
             result = merge(shards, matches)
